@@ -3,9 +3,11 @@ from typing import Any
 
 from llama_index.core.agent.workflow import FunctionAgent
 from llama_index.core.workflow import Context
+from openai import AuthenticationError, OpenAIError
 
 from app.agents.base import AgentPort, AgentResult
 from app.agents.prompts import PD_SYSTEM_PROMPT
+from app.core.exceptions import AppError
 from app.core.logging import get_logger
 from app.schemas.prescription import PDExtractionResponse
 from app.services.memory import SessionStore
@@ -45,7 +47,22 @@ class PrescriptionAgent(AgentPort):
             message,
             examples=[example.reviewed_output for example in examples],
         )
-        response = await self._agent.run(user_msg=injected_message, ctx=ctx)
+        try:
+            response = await self._agent.run(user_msg=injected_message, ctx=ctx)
+        except AuthenticationError as exc:
+            logger.warning("llm_authentication_failed", extra={"session_id": session_id})
+            raise AppError(
+                "LLM authentication failed. Check OPENAI_API_KEY and OPENAI_API_BASE.",
+                error_code="LLM_AUTHENTICATION_ERROR",
+                status_code=503,
+            ) from exc
+        except OpenAIError as exc:
+            logger.warning("llm_provider_error", extra={"session_id": session_id})
+            raise AppError(
+                "LLM provider request failed.",
+                error_code="LLM_PROVIDER_ERROR",
+                status_code=502,
+            ) from exc
         logger.info("agent_execution_completed", extra={"session_id": session_id})
         return AgentResult(response=self._coerce_pd_json(str(response)), sources=[])
 
