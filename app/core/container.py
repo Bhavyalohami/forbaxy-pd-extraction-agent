@@ -43,6 +43,7 @@ class Container:
             review_learning_store=review_learning_store,
             timeout_seconds=settings.agent_timeout_seconds,
             enable_tools=settings.enable_agent_tools,
+            enable_structured_output=settings.enable_structured_output,
         )
         chat_service = ChatService(agent=agent, session_store=session_store)
         return cls(

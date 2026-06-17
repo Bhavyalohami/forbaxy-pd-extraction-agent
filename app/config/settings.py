@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     llm_is_function_calling: bool = Field(default=True, validation_alias="LLM_IS_FUNCTION_CALLING")
     agent_timeout_seconds: float = Field(default=30, gt=0, validation_alias="AGENT_TIMEOUT_SECONDS")
     enable_agent_tools: bool = Field(default=True, validation_alias="ENABLE_AGENT_TOOLS")
+    enable_structured_output: bool = Field(
+        default=True,
+        validation_alias="ENABLE_STRUCTURED_OUTPUT",
+    )
     host: str = Field(default="0.0.0.0", validation_alias="HOST")
     port: int = Field(default=8000, validation_alias="PORT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")

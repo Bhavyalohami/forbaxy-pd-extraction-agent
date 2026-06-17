@@ -29,6 +29,7 @@ class PrescriptionAgent(AgentPort):
         review_learning_store: ReviewLearningStore,
         timeout_seconds: float,
         enable_tools: bool,
+        enable_structured_output: bool,
     ) -> None:
         self._session_store = session_store
         self._review_learning_store = review_learning_store
@@ -39,7 +40,7 @@ class PrescriptionAgent(AgentPort):
             llm=llm,
             system_prompt=PD_SYSTEM_PROMPT,
             initial_state={"future_mcp_enabled": False, "multi_agent_ready": True},
-            output_cls=PDExtractionResponse,
+            output_cls=PDExtractionResponse if enable_structured_output else None,
             streaming=False,
             timeout=timeout_seconds,
         )
@@ -70,7 +71,10 @@ class PrescriptionAgent(AgentPort):
                 status_code=503,
             ) from exc
         except OpenAIError as exc:
-            logger.warning("llm_provider_error", extra={"session_id": session_id})
+            logger.warning(
+                "llm_provider_error",
+                extra={"session_id": session_id, "provider_error": str(exc)},
+            )
             raise AppError(
                 "LLM provider request failed.",
                 error_code="LLM_PROVIDER_ERROR",
