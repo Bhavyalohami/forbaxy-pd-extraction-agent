@@ -41,6 +41,7 @@ class Container:
             tool_registry=tool_registry,
             session_store=session_store,
             review_learning_store=review_learning_store,
+            timeout_seconds=settings.agent_timeout_seconds,
         )
         chat_service = ChatService(agent=agent, session_store=session_store)
         return cls(
@@ -52,4 +53,3 @@ class Container:
             agent=agent,
             chat_service=chat_service,
         )
-

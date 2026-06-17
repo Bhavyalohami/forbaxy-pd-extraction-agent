@@ -26,6 +26,7 @@ class PrescriptionAgent(AgentPort):
         tool_registry: ToolRegistry,
         session_store: SessionStore,
         review_learning_store: ReviewLearningStore,
+        timeout_seconds: float,
     ) -> None:
         self._session_store = session_store
         self._review_learning_store = review_learning_store
@@ -36,6 +37,9 @@ class PrescriptionAgent(AgentPort):
             llm=llm,
             system_prompt=PD_SYSTEM_PROMPT,
             initial_state={"future_mcp_enabled": False, "multi_agent_ready": True},
+            output_cls=PDExtractionResponse,
+            streaming=False,
+            timeout=timeout_seconds,
         )
         self._contexts: dict[str, Context] = {}
 
@@ -49,6 +53,13 @@ class PrescriptionAgent(AgentPort):
         )
         try:
             response = await self._agent.run(user_msg=injected_message, ctx=ctx)
+        except TimeoutError as exc:
+            logger.warning("agent_execution_timeout", extra={"session_id": session_id})
+            raise AppError(
+                "Agent execution timed out.",
+                error_code="AGENT_TIMEOUT",
+                status_code=504,
+            ) from exc
         except AuthenticationError as exc:
             logger.warning("llm_authentication_failed", extra={"session_id": session_id})
             raise AppError(
@@ -70,6 +81,7 @@ class PrescriptionAgent(AgentPort):
         reviewed_context = redact_patient_information(json.dumps(examples[-3:], ensure_ascii=False))
         return (
             "Context: Input is expected to contain only cropped Prescription Details. "
+            "For ordinary PD extraction, do not call tools; return the required JSON directly. "
             "Reviewed DMS-MS corrections are ground truth. Use these sanitized examples only for "
             f"format and abbreviation learning: {reviewed_context}\n\n"
             f"Task input:\n{message}"

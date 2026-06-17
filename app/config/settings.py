@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     temperature: float = Field(default=0.1, ge=0, le=2, validation_alias="TEMPERATURE")
     llm_context_window: int = Field(default=128000, validation_alias="LLM_CONTEXT_WINDOW")
     llm_is_function_calling: bool = Field(default=True, validation_alias="LLM_IS_FUNCTION_CALLING")
+    agent_timeout_seconds: float = Field(default=30, gt=0, validation_alias="AGENT_TIMEOUT_SECONDS")
     host: str = Field(default="0.0.0.0", validation_alias="HOST")
     port: int = Field(default=8000, validation_alias="PORT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
