@@ -43,6 +43,7 @@ class PrescriptionAgent(AgentPort):
             output_cls=PDExtractionResponse if enable_structured_output else None,
             streaming=False,
             timeout=timeout_seconds,
+            initial_tool_choice="auto" if enable_tools else "none",
         )
         self._contexts: dict[str, Context] = {}
 
