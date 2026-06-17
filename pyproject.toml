@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Production-ready FastAPI and LlamaIndex agent for PD-only prescription extraction."
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115.0",
+    "fastapi>=0.115.0,<0.116.0",
     "uvicorn[standard]>=0.30.0",
     "pydantic>=2.8.0",
     "pydantic-settings>=2.4.0",
@@ -24,6 +24,10 @@ dev = [
 
 [tool.uv]
 package = false
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["tests*", "logs*"]
 
 [tool.ruff]
 target-version = "py312"
