@@ -102,7 +102,7 @@ class PrescriptionAgent(AgentPort):
 
     def _coerce_pd_json(self, raw_response: str) -> str:
         sanitized = redact_patient_information(raw_response.strip())
-        candidate = self._extract_json_object(sanitized)
+        candidate = self.extract_json_object(sanitized)
         try:
             payload = json.loads(candidate)
             return PDExtractionResponse.model_validate(payload).model_dump_json()
@@ -116,7 +116,8 @@ class PrescriptionAgent(AgentPort):
             )
             return fallback.model_dump_json()
 
-    def _extract_json_object(self, response: str) -> str:
+    @staticmethod
+    def extract_json_object(response: str) -> str:
         fenced_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response, re.DOTALL)
         if fenced_match:
             return fenced_match.group(1)

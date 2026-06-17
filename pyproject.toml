@@ -40,3 +40,17 @@ asyncio_mode = "auto"
 pythonpath = ["."]
 addopts = "-q"
 
+[tool.llamaagents]
+name = "forbaxy-pd-extraction-agent"
+env_files = []
+
+[tool.llamaagents.env]
+OPENAI_API_BASE = "https://api.groq.com/openai/v1"
+MODEL_NAME = "llama-3.3-70b-versatile"
+TEMPERATURE = "0.1"
+LLM_CONTEXT_WINDOW = "131072"
+ENABLE_AGENT_TOOLS = "false"
+ENABLE_STRUCTURED_OUTPUT = "false"
+
+[tool.llamaagents.workflows]
+pd_extraction = "app.workflows.pd_extraction:pd_extraction_workflow"
