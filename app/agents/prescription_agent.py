@@ -33,6 +33,8 @@ class PrescriptionAgent(AgentPort):
     ) -> None:
         self._session_store = session_store
         self._review_learning_store = review_learning_store
+        self._llm = llm
+        self._direct_llm_mode = not enable_tools and not enable_structured_output
         self._agent = FunctionAgent(
             name="forbaxy_pd_extraction_agent",
             description="PD-only prescription extraction, validation, and review-learning agent.",
@@ -56,7 +58,10 @@ class PrescriptionAgent(AgentPort):
             examples=[example.reviewed_output for example in examples],
         )
         try:
-            response = await self._agent.run(user_msg=injected_message, ctx=ctx)
+            if self._direct_llm_mode:
+                response = await self._llm.acomplete(f"{PD_SYSTEM_PROMPT}\n\n{injected_message}")
+            else:
+                response = await self._agent.run(user_msg=injected_message, ctx=ctx)
         except (TimeoutError, WorkflowTimeoutError) as exc:
             logger.warning("agent_execution_timeout", extra={"session_id": session_id})
             raise AppError(
