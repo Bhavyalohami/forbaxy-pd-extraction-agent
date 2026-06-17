@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 from llama_index.core.agent.workflow import FunctionAgent
@@ -101,8 +102,9 @@ class PrescriptionAgent(AgentPort):
 
     def _coerce_pd_json(self, raw_response: str) -> str:
         sanitized = redact_patient_information(raw_response.strip())
+        candidate = self._extract_json_object(sanitized)
         try:
-            payload = json.loads(sanitized)
+            payload = json.loads(candidate)
             return PDExtractionResponse.model_validate(payload).model_dump_json()
         except (json.JSONDecodeError, ValueError):
             fallback = PDExtractionResponse()
@@ -113,3 +115,15 @@ class PrescriptionAgent(AgentPort):
                 "Agent response was not valid PD JSON and requires review."
             )
             return fallback.model_dump_json()
+
+    def _extract_json_object(self, response: str) -> str:
+        fenced_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response, re.DOTALL)
+        if fenced_match:
+            return fenced_match.group(1)
+
+        first = response.find("{")
+        last = response.rfind("}")
+        if first != -1 and last != -1 and last > first:
+            return response[first : last + 1]
+
+        return response
