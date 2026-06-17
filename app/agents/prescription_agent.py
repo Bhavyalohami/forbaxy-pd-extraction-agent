@@ -4,6 +4,7 @@ from typing import Any
 from llama_index.core.agent.workflow import FunctionAgent
 from llama_index.core.workflow import Context
 from openai import AuthenticationError, OpenAIError
+from workflows.errors import WorkflowTimeoutError
 
 from app.agents.base import AgentPort, AgentResult
 from app.agents.prompts import PD_SYSTEM_PROMPT
@@ -27,13 +28,14 @@ class PrescriptionAgent(AgentPort):
         session_store: SessionStore,
         review_learning_store: ReviewLearningStore,
         timeout_seconds: float,
+        enable_tools: bool,
     ) -> None:
         self._session_store = session_store
         self._review_learning_store = review_learning_store
         self._agent = FunctionAgent(
             name="forbaxy_pd_extraction_agent",
             description="PD-only prescription extraction, validation, and review-learning agent.",
-            tools=tool_registry.as_llamaindex_tools(),
+            tools=tool_registry.as_llamaindex_tools() if enable_tools else [],
             llm=llm,
             system_prompt=PD_SYSTEM_PROMPT,
             initial_state={"future_mcp_enabled": False, "multi_agent_ready": True},
@@ -53,7 +55,7 @@ class PrescriptionAgent(AgentPort):
         )
         try:
             response = await self._agent.run(user_msg=injected_message, ctx=ctx)
-        except TimeoutError as exc:
+        except (TimeoutError, WorkflowTimeoutError) as exc:
             logger.warning("agent_execution_timeout", extra={"session_id": session_id})
             raise AppError(
                 "Agent execution timed out.",
