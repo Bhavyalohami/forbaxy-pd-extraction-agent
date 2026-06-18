@@ -11,6 +11,8 @@ class Settings(BaseSettings):
         validation_alias="OPENAI_API_BASE",
     )
     model_name: str = Field(default="gpt-4o-mini", validation_alias="MODEL_NAME")
+    vision_model_name: str = Field(default="", validation_alias="VISION_MODEL_NAME")
+    enable_vision_input: bool = Field(default=True, validation_alias="ENABLE_VISION_INPUT")
     temperature: float = Field(default=0.1, ge=0, le=2, validation_alias="TEMPERATURE")
     llm_context_window: int = Field(default=128000, validation_alias="LLM_CONTEXT_WINDOW")
     llm_is_function_calling: bool = Field(default=True, validation_alias="LLM_IS_FUNCTION_CALLING")

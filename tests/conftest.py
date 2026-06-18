@@ -8,6 +8,9 @@ from fastapi.testclient import TestClient
 
 
 class FakeAgent(AgentPort):
+    def __init__(self) -> None:
+        self.last_image_data_url: str | None = None
+
     async def run(
         self,
         session_id: str,
@@ -16,7 +19,9 @@ class FakeAgent(AgentPort):
         learning_context: LearningContext | None = None,
         learning_metadata: LearningMetadata | None = None,
         extraction_id: str | None = None,
+        image_data_url: str | None = None,
     ) -> AgentResult:
+        self.last_image_data_url = image_data_url
         metadata = {"learning_used": learning_context is not None}
         if extraction_id:
             metadata["extraction_id"] = extraction_id
@@ -44,6 +49,7 @@ def client() -> TestClient:
     os.environ["PARSER_MODE"] = "mock"
     app = create_app()
     with TestClient(app) as test_client:
-        test_client.app.state.container.agent = FakeAgent()
-        test_client.app.state.container.chat_service._agent = FakeAgent()
+        agent = FakeAgent()
+        test_client.app.state.container.agent = agent
+        test_client.app.state.container.chat_service._agent = agent
         yield test_client

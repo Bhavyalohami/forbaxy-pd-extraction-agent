@@ -21,5 +21,6 @@ class AgentPort(ABC):
         learning_context: LearningContext | None = None,
         learning_metadata: LearningMetadata | None = None,
         extraction_id: str | None = None,
+        image_data_url: str | None = None,
     ) -> AgentResult:
         raise NotImplementedError

@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from llama_index.core.workflow import StartEvent, StopEvent, Workflow, step
 from llama_index.llms.openai_like import OpenAILike
-from openai import OpenAIError
+from openai import AsyncOpenAI, OpenAIError
 
 from app.agents.prescription_agent import PrescriptionAgent
 from app.agents.prompts import PD_SYSTEM_PROMPT
@@ -30,7 +30,10 @@ class PDExtractionWorkflow(Workflow):
         request = self._request_from_event(ev)
         settings = Settings()
         content = request.content
+        image_data_url = None
         if request.content_type in {"image", "document"} and _looks_like_raw_file_payload(content):
+            if request.content_type == "image":
+                image_data_url = _normalise_image_data_url(content)
             parsed = await build_parser(settings).parse(
                 content=_decode_raw_content(content),
                 filename=f"pd-crop.{_default_extension(content, request.content_type)}",
@@ -65,7 +68,14 @@ class PDExtractionWorkflow(Workflow):
         )
 
         try:
-            response = await llm.acomplete(prompt)
+            if image_data_url and settings.enable_vision_input:
+                response = await _complete_with_image(
+                    prompt=prompt,
+                    image_data_url=image_data_url,
+                    settings=settings,
+                )
+            else:
+                response = await llm.acomplete(prompt)
         except OpenAIError as exc:
             raise AppError(
                 "Prescription extraction model failed.",
@@ -155,6 +165,32 @@ def _decode_raw_content(content: str) -> bytes:
             error_code="INVALID_PD_PAYLOAD",
             status_code=422,
         ) from exc
+
+
+async def _complete_with_image(*, prompt: str, image_data_url: str, settings: Settings) -> str:
+    client = AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_api_base)
+    response = await client.chat.completions.create(
+        model=settings.vision_model_name or settings.model_name,
+        temperature=settings.temperature,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": image_data_url}},
+                ],
+            }
+        ],
+    )
+    return response.choices[0].message.content or ""
+
+
+def _normalise_image_data_url(content: str) -> str:
+    stripped = content.strip()
+    if stripped.startswith("data:"):
+        return stripped
+    compact = re.sub(r"\s+", "", stripped)
+    return f"data:image/jpeg;base64,{compact}"
 
 
 def _content_mime_type(content: str, content_type: str) -> str:

@@ -4,7 +4,7 @@ from typing import Any
 
 from llama_index.core.agent.workflow import FunctionAgent
 from llama_index.core.workflow import Context
-from openai import AuthenticationError, OpenAIError
+from openai import AsyncOpenAI, AuthenticationError, OpenAIError
 from workflows.errors import WorkflowTimeoutError
 
 from app.agents.base import AgentPort, AgentResult
@@ -33,10 +33,22 @@ class PrescriptionAgent(AgentPort):
         timeout_seconds: float,
         enable_tools: bool,
         enable_structured_output: bool,
+        api_key: str,
+        api_base: str,
+        model_name: str,
+        vision_model_name: str,
+        temperature: float,
+        enable_vision_input: bool,
     ) -> None:
         self._session_store = session_store
         self._review_learning_store = review_learning_store
         self._llm = llm
+        self._api_key = api_key
+        self._api_base = api_base
+        self._model_name = model_name
+        self._vision_model_name = vision_model_name or model_name
+        self._temperature = temperature
+        self._enable_vision_input = enable_vision_input
         self._direct_llm_mode = not enable_tools and not enable_structured_output
         self._agent = FunctionAgent(
             name="forbaxy_pd_extraction_agent",
@@ -60,6 +72,7 @@ class PrescriptionAgent(AgentPort):
         learning_context: LearningContext | None = None,
         learning_metadata: LearningMetadata | None = None,
         extraction_id: str | None = None,
+        image_data_url: str | None = None,
     ) -> AgentResult:
         logger.info("agent_execution_started", extra={"session_id": session_id})
         ctx = self._contexts.setdefault(session_id, Context(self._agent))
@@ -69,7 +82,9 @@ class PrescriptionAgent(AgentPort):
             learning_context=learning_context if learning_context_used else None,
         )
         try:
-            if self._direct_llm_mode:
+            if image_data_url and self._enable_vision_input:
+                response = await self._complete_with_image(injected_message, image_data_url)
+            elif self._direct_llm_mode:
                 response = await self._llm.acomplete(f"{PD_SYSTEM_PROMPT}\n\n{injected_message}")
             else:
                 response = await self._agent.run(user_msg=injected_message, ctx=ctx)
@@ -107,6 +122,23 @@ class PrescriptionAgent(AgentPort):
                 supplied_metadata=learning_metadata,
             ),
         )
+
+    async def _complete_with_image(self, message: str, image_data_url: str) -> str:
+        client = AsyncOpenAI(api_key=self._api_key, base_url=self._api_base)
+        response = await client.chat.completions.create(
+            model=self._vision_model_name,
+            temperature=self._temperature,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"{PD_SYSTEM_PROMPT}\n\n{message}"},
+                        {"type": "image_url", "image_url": {"url": image_data_url}},
+                    ],
+                }
+            ],
+        )
+        return response.choices[0].message.content or ""
 
     def _inject_context(
         self,

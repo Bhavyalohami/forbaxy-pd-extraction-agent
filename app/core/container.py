@@ -45,6 +45,12 @@ class Container:
             timeout_seconds=settings.agent_timeout_seconds,
             enable_tools=settings.enable_agent_tools,
             enable_structured_output=settings.enable_structured_output,
+            api_key=settings.openai_api_key,
+            api_base=settings.openai_api_base,
+            model_name=settings.model_name,
+            vision_model_name=settings.vision_model_name,
+            temperature=settings.temperature,
+            enable_vision_input=settings.enable_vision_input,
         )
         chat_service = ChatService(agent=agent, session_store=session_store)
         return cls(

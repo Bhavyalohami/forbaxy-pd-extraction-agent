@@ -42,7 +42,10 @@ async def extract_pd(
     container: Container = Depends(get_container),
 ) -> ProductionPDResponse:
     content = request.content
+    image_data_url = None
     if request.content_type in {"image", "document"} and _looks_like_raw_file_payload(content):
+        if request.content_type == "image":
+            image_data_url = _normalise_image_data_url(content)
         parsed = await container.parser.parse(
             content=_decode_raw_content(content),
             filename=f"pd-crop.{_default_extension(content, request.content_type)}",
@@ -65,6 +68,7 @@ async def extract_pd(
         learning_context=learning_context,
         learning_metadata=request.learning_metadata,
         extraction_id=request.extraction_id,
+        image_data_url=image_data_url,
     )
     return to_production_response(
         parse_internal_extraction(agent_result.response),
@@ -155,6 +159,14 @@ def _decode_raw_content(content: str) -> bytes:
             error_code="INVALID_PD_PAYLOAD",
             status_code=422,
         ) from exc
+
+
+def _normalise_image_data_url(content: str) -> str:
+    stripped = content.strip()
+    if stripped.startswith("data:"):
+        return stripped
+    compact = re.sub(r"\s+", "", stripped)
+    return f"data:image/jpeg;base64,{compact}"
 
 
 def _content_mime_type(content: str, content_type: str) -> str:

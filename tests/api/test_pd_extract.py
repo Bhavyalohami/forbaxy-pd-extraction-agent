@@ -104,6 +104,10 @@ def test_pd_extract_parses_raw_image_payloads(client):
     )
 
     assert response.status_code == 200
+    assert (
+        client.app.state.container.agent.last_image_data_url
+        == "data:image/jpeg;base64," + ("QUJD" * 80)
+    )
 
 
 def test_pd_extract_accepts_image_label_with_extracted_text(client):
