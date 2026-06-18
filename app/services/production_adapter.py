@@ -1,4 +1,5 @@
 import json
+import re
 
 from app.schemas.pd import (
     LearningContext,
@@ -8,6 +9,28 @@ from app.schemas.pd import (
 )
 from app.schemas.prescription import PDExtractionResponse
 from app.services.privacy import redact_patient_information
+
+OPTIONAL_FIELD_ISSUES = {
+    "age",
+    "gender",
+    "height",
+    "pain_score",
+    "rbs",
+    "temperature",
+    "weight",
+}
+
+ISSUE_SENTENCES = {
+    "diagnosis": "Diagnosis is not clearly visible.",
+    "route": "Medicine route is not specified.",
+    "medicine_route": "Medicine route is not specified.",
+    "medicines.route": "Medicine route is not specified.",
+    "follow_up": "Follow-up instruction is not clearly visible.",
+    "duration": "Medicine duration is not clearly visible.",
+    "dose": "Medicine dose is not clearly visible.",
+    "frequency": "Medicine frequency is not clearly visible.",
+    "allergies": "Allergy information is not clearly visible.",
+}
 
 
 def percent(value: float) -> int:
@@ -89,7 +112,7 @@ def to_production_response(
         medicines=extraction.medicines,
         investigations=extraction.investigations,
         medication_assessment=extraction.medication_assessment,
-        issues=[redact_patient_information(item) for item in extraction.unclear_fields],
+        issues=normalise_issues(extraction.unclear_fields),
         learning_metadata=learning_metadata,
     )
 
@@ -97,6 +120,37 @@ def to_production_response(
 def parse_internal_extraction(response: str) -> PDExtractionResponse:
     payload = json.loads(response)
     return PDExtractionResponse.model_validate(payload)
+
+
+def normalise_issues(issues: list[str]) -> list[str]:
+    normalised: list[str] = []
+    seen: set[str] = set()
+    for issue in issues:
+        clean = redact_patient_information(issue).strip()
+        if not clean:
+            continue
+
+        key = _issue_key(clean)
+        if key in OPTIONAL_FIELD_ISSUES:
+            continue
+
+        sentence = ISSUE_SENTENCES.get(key, clean)
+        if sentence == clean and _looks_like_raw_field_name(clean):
+            continue
+        if sentence and sentence not in seen:
+            normalised.append(sentence)
+            seen.add(sentence)
+    return normalised
+
+
+def _issue_key(issue: str) -> str:
+    return re.sub(r"[^a-z0-9_.]+", "_", issue.strip().lower()).strip("_")
+
+
+def _looks_like_raw_field_name(issue: str) -> bool:
+    return re.fullmatch(r"[A-Za-z][A-Za-z0-9_. ]{0,40}", issue) is not None and not any(
+        char in issue for char in ".:,;!?-"
+    )
 
 
 def _metadata_value_is_safe(value: object) -> bool:

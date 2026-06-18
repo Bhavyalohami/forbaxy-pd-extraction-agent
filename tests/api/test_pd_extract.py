@@ -22,7 +22,7 @@ def test_pd_extract_returns_production_response(client):
     assert payload["patient"]["diagnosis"] == "viral fever"
     assert payload["patient"]["follow_up"] == "review after 3 days"
     assert payload["vitals"]["rbs"] == ""
-    assert payload["issues"] == ["dose"]
+    assert payload["issues"] == ["Medicine dose is not clearly visible."]
     assert payload["learning_metadata"] == {
         "learning_used": False,
         "retrieval_matches": 0,

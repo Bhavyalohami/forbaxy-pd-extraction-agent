@@ -3,6 +3,7 @@ from app.schemas.prescription import AdmissionAdvice, PDExtraction, PDExtraction
 from app.services.production_adapter import (
     build_learning_metadata,
     learning_context_has_content,
+    normalise_issues,
     percent,
     to_production_response,
 )
@@ -76,3 +77,28 @@ def test_learning_context_has_content_only_for_non_empty_context():
         learning_context_has_content(LearningContext(guidance="Prefer visible evidence."))
         is True
     )
+
+
+def test_normalise_issues_removes_optional_raw_field_names():
+    assert normalise_issues(["diagnosis", "pain_score", "height", "rbs"]) == [
+        "Diagnosis is not clearly visible."
+    ]
+
+
+def test_adapter_returns_human_readable_issues():
+    response = PDExtractionResponse(
+        pd_extraction=PDExtraction(
+            unclear_fields=["diagnosis", "pain_score", "route", "duration"]
+        )
+    )
+
+    production = to_production_response(
+        response,
+        learning_metadata={"learning_used": False},
+    )
+
+    assert production.issues == [
+        "Diagnosis is not clearly visible.",
+        "Medicine route is not specified.",
+        "Medicine duration is not clearly visible.",
+    ]

@@ -73,6 +73,15 @@ Extract only clinical prescription details and return strict JSON only:
 Medication assessment statuses: normal_medicated, under_medicated, over_medicated, unclear.
 Explain medication assessment using visible prescription evidence only. If evidence is insufficient,
 use unclear and review_recommended=true. Preserve ambiguous medicine text with low confidence.
+Do not put raw field names in unclear_fields, issues, or notes. Never return values like
+"diagnosis", "height", "rbs", or "pain_score" as standalone issues. If a field is simply not
+visible, leave that field empty. Only add an issue when it is clinically useful or needs review,
+using human-readable sentences such as "Diagnosis is not clearly visible.", "Medicine route is not
+specified.", or "Pregnancy context visible; medication safety should be reviewed."
+Use history, examination, preventive_advice, follow_up.instruction, and notes to capture visible
+clinical findings from the prescription body. When medicines are visible, medication_assessment
+confidence should not be 0 unless extraction fully failed, and rationale must explain the status
+using the visible medicines, diagnosis/complaints, investigations, and advice.
 
 Use reviewed DMS-MS correction examples, when injected, as ground truth for format, abbreviations,
 handwriting patterns, department habits, and common correction patterns. Do not learn or use PI.
