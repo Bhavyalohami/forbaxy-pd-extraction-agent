@@ -25,6 +25,9 @@ def test_pd_extract_returns_production_response(client):
     assert payload["issues"] == ["dose"]
     assert payload["learning_metadata"] == {
         "learning_used": False,
+        "retrieval_matches": 0,
+        "average_similarity": None,
+        "context_size": 0,
         "extraction_id": "pd_123",
     }
 
@@ -91,17 +94,16 @@ def test_pd_extract_forbids_patient_information_fields(client):
     assert response.json()["error_code"] == "VALIDATION_ERROR"
 
 
-def test_pd_extract_rejects_raw_image_payloads(client):
+def test_pd_extract_parses_raw_image_payloads(client):
     response = client.post(
         "/pd/extract",
         json={
-            "content": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD",
+            "content": "data:image/jpeg;base64," + ("QUJD" * 80),
             "content_type": "image",
         },
     )
 
-    assert response.status_code == 422
-    assert response.json()["error_code"] == "VALIDATION_ERROR"
+    assert response.status_code == 200
 
 
 def test_pd_extract_accepts_image_label_with_extracted_text(client):

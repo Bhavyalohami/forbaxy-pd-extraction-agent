@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 MedicationStatus = Literal["normal_medicated", "under_medicated", "over_medicated", "unclear"]
 RiskCategory = Literal["low", "medium", "high", "critical", "unclear"]
+InvestigationStatus = Literal["ordered", "pending", "completed", "cancelled", "unknown"]
 
 
 class Vitals(BaseModel):
@@ -20,7 +21,7 @@ class Vitals(BaseModel):
 class Investigation(BaseModel):
     name: str = ""
     notes: str = ""
-    status: str = "ordered"
+    status: InvestigationStatus = "ordered"
 
 
 class Medicine(BaseModel):

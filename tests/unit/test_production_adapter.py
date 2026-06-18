@@ -44,7 +44,13 @@ def test_learning_metadata_does_not_echo_pi_like_values():
         supplied_metadata=LearningMetadata(retrieval_matches=2),
     )
 
-    assert metadata == {"learning_used": True, "retrieval_matches": 2}
+    assert metadata == {
+        "learning_used": True,
+        "retrieval_matches": 2,
+        "average_similarity": None,
+        "context_size": 0,
+        "extraction_id": None,
+    }
 
 
 def test_learning_metadata_does_not_trust_caller_learning_used():
@@ -54,7 +60,13 @@ def test_learning_metadata_does_not_trust_caller_learning_used():
         supplied_metadata=LearningMetadata(learning_used=True, retrieval_matches=2),
     )
 
-    assert metadata == {"retrieval_matches": 2, "learning_used": False}
+    assert metadata == {
+        "learning_used": False,
+        "retrieval_matches": 2,
+        "average_similarity": None,
+        "context_size": 0,
+        "extraction_id": None,
+    }
 
 
 def test_learning_context_has_content_only_for_non_empty_context():

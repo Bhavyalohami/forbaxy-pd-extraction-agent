@@ -20,7 +20,13 @@ def build_learning_metadata(
     extraction_id: str | None,
     supplied_metadata: LearningMetadata | None,
 ) -> dict[str, int | float | str | bool | None]:
-    metadata: dict[str, int | float | str | bool | None] = {}
+    metadata: dict[str, int | float | str | bool | None] = {
+        "learning_used": learning_used,
+        "retrieval_matches": 0,
+        "average_similarity": None,
+        "context_size": 0,
+        "extraction_id": None,
+    }
     if supplied_metadata is not None:
         metadata.update(
             {

@@ -93,7 +93,7 @@ class PrescriptionAgent(AgentPort):
                 extra={"session_id": session_id, "provider_error": str(exc)},
             )
             raise AppError(
-                "LLM provider request failed.",
+                "Prescription extraction model failed.",
                 error_code="LLM_PROVIDER_ERROR",
                 status_code=502,
             ) from exc
@@ -148,17 +148,104 @@ class PrescriptionAgent(AgentPort):
         sanitized = redact_patient_information(raw_response.strip())
         candidate = self.extract_json_object(sanitized)
         try:
-            payload = json.loads(candidate)
+            payload = self._normalise_llm_payload(json.loads(candidate))
             return PDExtractionResponse.model_validate(payload).model_dump_json()
-        except (json.JSONDecodeError, ValueError):
-            fallback = PDExtractionResponse()
-            fallback.pd_extraction.medication_assessment.status = "unclear"
-            fallback.pd_extraction.medication_assessment.review_recommended = True
-            fallback.pd_extraction.unclear_fields.append("agent_response")
-            fallback.pd_extraction.notes = (
-                "Agent response was not valid PD JSON and requires review."
-            )
-            return fallback.model_dump_json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise AppError(
+                "Prescription extraction model failed.",
+                error_code="LLM_PROVIDER_ERROR",
+                status_code=502,
+            ) from exc
+
+    def _normalise_llm_payload(self, payload: Any) -> dict[str, Any]:
+        if not isinstance(payload, dict):
+            return {}
+
+        if "pd_extraction" not in payload:
+            payload = {"pd_extraction": payload}
+
+        extraction = payload.get("pd_extraction")
+        if not isinstance(extraction, dict):
+            return payload
+
+        extraction["investigations"] = self._normalise_investigations(
+            extraction.get("investigations", [])
+        )
+        extraction["medicines"] = self._normalise_medicines(extraction.get("medicines", []))
+        extraction["admission"] = self._normalise_admission(extraction.get("admission", {}))
+        extraction["medication_assessment"] = self._normalise_medication_assessment(
+            extraction.get("medication_assessment", {})
+        )
+        extraction["extraction_confidence"] = self._fraction(
+            extraction.get("extraction_confidence", 0)
+        )
+        payload["pd_extraction"] = extraction
+        return payload
+
+    def _normalise_investigations(self, investigations: Any) -> list[dict[str, str]]:
+        if not isinstance(investigations, list):
+            return []
+
+        normalised = []
+        for investigation in investigations:
+            if isinstance(investigation, str):
+                name = investigation.strip()
+                if name:
+                    normalised.append({"name": name, "notes": "", "status": "ordered"})
+                continue
+            if isinstance(investigation, dict):
+                status = str(investigation.get("status", "ordered") or "ordered")
+                if status not in {"ordered", "pending", "completed", "cancelled", "unknown"}:
+                    status = "ordered"
+                normalised.append(
+                    {
+                        "name": str(investigation.get("name", "") or ""),
+                        "notes": str(investigation.get("notes", "") or ""),
+                        "status": status,
+                    }
+                )
+        return normalised
+
+    def _normalise_medicines(self, medicines: Any) -> list[dict[str, Any]]:
+        if not isinstance(medicines, list):
+            return []
+
+        normalised = []
+        for medicine in medicines:
+            if isinstance(medicine, str):
+                name = medicine.strip()
+                if name:
+                    normalised.append({"name": name, "confidence": 0})
+                continue
+            if isinstance(medicine, dict):
+                item = dict(medicine)
+                item["confidence"] = self._fraction(item.get("confidence", 0))
+                normalised.append(item)
+        return normalised
+
+    def _normalise_admission(self, admission: Any) -> dict[str, Any]:
+        if not isinstance(admission, dict):
+            return {}
+        item = dict(admission)
+        item["ipd_probability"] = self._fraction(item.get("ipd_probability", 0))
+        return item
+
+    def _normalise_medication_assessment(self, assessment: Any) -> dict[str, Any]:
+        if not isinstance(assessment, dict):
+            return {}
+
+        item = dict(assessment)
+        item["confidence"] = self._fraction(item.get("confidence", 0))
+        return item
+
+    def _fraction(self, value: Any) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return 0
+        if number > 1:
+            number /= 100
+        return max(0, min(1, number))
 
     @staticmethod
     def extract_json_object(response: str) -> str:

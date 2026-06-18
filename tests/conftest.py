@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from app.agents.base import AgentPort, AgentResult
 from app.main import create_app
@@ -39,6 +41,7 @@ class FakeAgent(AgentPort):
 
 @pytest.fixture()
 def client() -> TestClient:
+    os.environ["PARSER_MODE"] = "mock"
     app = create_app()
     with TestClient(app) as test_client:
         test_client.app.state.container.agent = FakeAgent()

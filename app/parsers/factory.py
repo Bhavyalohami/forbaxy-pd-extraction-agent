@@ -6,5 +6,5 @@ from app.parsers.mock_parser import MockParser
 
 def build_parser(settings: Settings) -> DocumentParser:
     if settings.parser_mode == "llamaparse":
-        return LlamaParseParser()
+        return LlamaParseParser(api_key=settings.llama_cloud_api_key)
     return MockParser()

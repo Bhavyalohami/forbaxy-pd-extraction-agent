@@ -92,9 +92,9 @@ curl -X POST http://localhost:8000/pd/extract \
   }'
 ```
 
-`content_type=image` and `content_type=document` are accepted only as source labels when `content`
-already contains extracted PD text or markdown. `/pd/extract` does not decode raw files, base64, or
-data URLs; use `/documents/upload` or an upstream parser first.
+`content_type=image` and `content_type=document` accept base64/data URL PD crop payloads. When
+`PARSER_MODE=llamaparse`, the service sends that crop to LlamaParse first, then passes the parsed PD
+text into the extraction agent. `content_type=text` still accepts already-parsed PD text directly.
 
 Session:
 

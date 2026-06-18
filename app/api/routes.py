@@ -1,3 +1,5 @@
+import base64
+import re
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, UploadFile, status
@@ -34,13 +36,21 @@ async def chat(request: ChatRequest, container: Container = Depends(get_containe
 @router.post(
     "/pd/extract",
     response_model=ProductionPDResponse,
-    response_model_exclude_none=True,
 )
 async def extract_pd(
     request: PDExtractRequest,
     container: Container = Depends(get_container),
 ) -> ProductionPDResponse:
-    if contains_patient_information(request.content):
+    content = request.content
+    if request.content_type in {"image", "document"} and _looks_like_raw_file_payload(content):
+        parsed = await container.parser.parse(
+            content=_decode_raw_content(content),
+            filename=f"pd-crop.{_default_extension(content, request.content_type)}",
+            content_type=_content_mime_type(content, request.content_type),
+        )
+        content = parsed.text
+
+    if contains_patient_information(content):
         raise AppError(
             "Patient information is not accepted by this endpoint.",
             error_code="PRIVACY_BOUNDARY",
@@ -51,7 +61,7 @@ async def extract_pd(
     )
     agent_result = await container.agent.run(
         session_id=request.extraction_id or str(uuid4()),
-        message=redact_patient_information(request.content),
+        message=redact_patient_information(content),
         learning_context=learning_context,
         learning_metadata=request.learning_metadata,
         extraction_id=request.extraction_id,
@@ -119,3 +129,45 @@ async def delete_session(
 ) -> SuccessResponse:
     await container.session_store.delete(session_id)
     return SuccessResponse(message="session deleted")
+
+
+def _looks_like_raw_file_payload(content: str) -> bool:
+    stripped = content.strip()
+    if stripped.startswith("data:") or ";base64," in stripped[:120]:
+        return True
+    compact = re.sub(r"\s+", "", stripped)
+    return len(compact) >= 200 and len(compact) % 4 == 0 and re.fullmatch(
+        r"[A-Za-z0-9+/]+={0,2}",
+        compact,
+    ) is not None
+
+
+def _decode_raw_content(content: str) -> bytes:
+    stripped = content.strip()
+    if stripped.startswith("data:") and "," in stripped:
+        stripped = stripped.split(",", 1)[1]
+    compact = re.sub(r"\s+", "", stripped)
+    try:
+        return base64.b64decode(compact, validate=True)
+    except Exception as exc:
+        raise AppError(
+            "Invalid base64 image/document payload.",
+            error_code="INVALID_PD_PAYLOAD",
+            status_code=422,
+        ) from exc
+
+
+def _content_mime_type(content: str, content_type: str) -> str:
+    match = re.match(r"^data:([^;,]+)", content.strip())
+    if match:
+        return match.group(1)
+    return "application/pdf" if content_type == "document" else "image/jpeg"
+
+
+def _default_extension(content: str, content_type: str) -> str:
+    mime_type = _content_mime_type(content, content_type).lower()
+    return {
+        "image/png": "png",
+        "image/webp": "webp",
+        "application/pdf": "pdf",
+    }.get(mime_type, "jpg" if content_type == "image" else "bin")
