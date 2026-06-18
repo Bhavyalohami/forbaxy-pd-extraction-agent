@@ -15,7 +15,7 @@ from app.schemas.pd import LearningContext, LearningMetadata
 from app.schemas.prescription import PDExtractionResponse
 from app.services.memory import SessionStore
 from app.services.privacy import redact_patient_information
-from app.services.production_adapter import build_learning_metadata
+from app.services.production_adapter import build_learning_metadata, learning_context_has_content
 from app.services.review_learning import ReviewLearningStore
 from app.tools.registry import ToolRegistry
 
@@ -63,9 +63,10 @@ class PrescriptionAgent(AgentPort):
     ) -> AgentResult:
         logger.info("agent_execution_started", extra={"session_id": session_id})
         ctx = self._contexts.setdefault(session_id, Context(self._agent))
+        learning_context_used = learning_context_has_content(learning_context)
         injected_message = self._inject_context(
             message,
-            learning_context=learning_context,
+            learning_context=learning_context if learning_context_used else None,
         )
         try:
             if self._direct_llm_mode:
@@ -101,7 +102,7 @@ class PrescriptionAgent(AgentPort):
             response=self._coerce_pd_json(str(response)),
             sources=[],
             learning_metadata=build_learning_metadata(
-                learning_used=learning_context is not None,
+                learning_used=learning_context_used,
                 extraction_id=extraction_id,
                 supplied_metadata=learning_metadata,
             ),

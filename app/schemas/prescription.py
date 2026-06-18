@@ -14,6 +14,7 @@ class Vitals(BaseModel):
     weight: str = ""
     height: str = ""
     pain_score: str = ""
+    rbs: str = ""
 
 
 class Investigation(BaseModel):
@@ -81,4 +82,3 @@ class PDExtraction(BaseModel):
 
 class PDExtractionResponse(BaseModel):
     pd_extraction: PDExtraction = Field(default_factory=PDExtraction)
-

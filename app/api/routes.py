@@ -13,6 +13,7 @@ from app.schemas.sessions import SessionResponse
 from app.services.privacy import contains_patient_information, redact_patient_information
 from app.services.production_adapter import (
     build_learning_metadata,
+    learning_context_has_content,
     parse_internal_extraction,
     to_production_response,
 )
@@ -30,7 +31,10 @@ async def chat(request: ChatRequest, container: Container = Depends(get_containe
     return await container.chat_service.chat(request)
 
 
-@router.post("/pd/extract", response_model=ProductionPDResponse)
+@router.post(
+    "/pd/extract",
+    response_model=ProductionPDResponse,
+)
 async def extract_pd(
     request: PDExtractRequest,
     container: Container = Depends(get_container),
@@ -41,10 +45,13 @@ async def extract_pd(
             error_code="PRIVACY_BOUNDARY",
         )
 
+    learning_context = (
+        request.learning_context if learning_context_has_content(request.learning_context) else None
+    )
     agent_result = await container.agent.run(
         session_id=request.extraction_id or str(uuid4()),
         message=redact_patient_information(request.content),
-        learning_context=request.learning_context,
+        learning_context=learning_context,
         learning_metadata=request.learning_metadata,
         extraction_id=request.extraction_id,
     )
@@ -52,7 +59,7 @@ async def extract_pd(
         parse_internal_extraction(agent_result.response),
         learning_metadata=agent_result.learning_metadata
         or build_learning_metadata(
-            learning_used=request.learning_context is not None,
+            learning_used=learning_context is not None,
             extraction_id=request.extraction_id,
             supplied_metadata=request.learning_metadata,
         ),

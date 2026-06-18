@@ -25,8 +25,12 @@ class FakeAgent(AgentPort):
                 '{"pd_extraction":{"chief_complaints":["fever"],'
                 '"diagnosis":"viral fever",'
                 '"extraction_confidence":0.95,'
+                '"follow_up":{"date":"2026-06-21","instruction":"review after 3 days"},'
                 '"admission":{"advised":false,"reason":"","ipd_probability":0.3,'
-                '"risk_category":"low"}}}'
+                '"risk_category":"low"},'
+                '"consultant":{"name":"Dr Sample","department":"General Medicine",'
+                '"specialty":"Physician"},'
+                '"unclear_fields":["dose"]}}'
             ),
             sources=[],
             learning_metadata=metadata,

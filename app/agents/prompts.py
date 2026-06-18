@@ -24,7 +24,8 @@ Extract only clinical prescription details and return strict JSON only:
       "temperature": "",
       "weight": "",
       "height": "",
-      "pain_score": ""
+      "pain_score": "",
+      "rbs": ""
     },
     "investigations": [],
     "medicines": [
@@ -76,4 +77,3 @@ use unclear and review_recommended=true. Preserve ambiguous medicine text with l
 Use reviewed DMS-MS correction examples, when injected, as ground truth for format, abbreviations,
 handwriting patterns, department habits, and common correction patterns. Do not learn or use PI.
 """.strip()
-

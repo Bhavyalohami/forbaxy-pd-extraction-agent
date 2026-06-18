@@ -67,6 +67,35 @@ curl -X POST http://localhost:8000/documents/upload \
   -F "file=@pd_crop.txt"
 ```
 
+Production PD extraction:
+
+```bash
+curl -X POST http://localhost:8000/pd/extract \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Chief complaint fever. Diagnosis viral fever. Rx Tab Paracetamol 500mg BD.",
+    "content_type": "text",
+    "learning_context": {
+      "guidance": "Prefer visible dosage evidence only.",
+      "patterns": ["BD means twice daily"],
+      "common_corrections": ["Dosage is often omitted by OCR"]
+    },
+    "learning_metadata": {
+      "retrieval_matches": 3,
+      "average_similarity": 0.89,
+      "context_size": 640
+    },
+    "extraction_id": "pd_123",
+    "prescription_id": "rx_456",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile"
+  }'
+```
+
+`content_type=image` and `content_type=document` are accepted only as source labels when `content`
+already contains extracted PD text or markdown. `/pd/extract` does not decode raw files, base64, or
+data URLs; use `/documents/upload` or an upstream parser first.
+
 Session:
 
 ```bash
@@ -93,7 +122,8 @@ The agent system prompt requires strict JSON:
       "temperature": "",
       "weight": "",
       "height": "",
-      "pain_score": ""
+      "pain_score": "",
+      "rbs": ""
     },
     "investigations": [],
     "medicines": [],
@@ -116,6 +146,11 @@ The agent system prompt requires strict JSON:
   }
 }
 ```
+
+The `/pd/extract` response is aligned with Yii production integration and always includes these
+safe-default fields: `admission_advised`, `follow_up_date`, `consultant`, `patient.follow_up`,
+`issues`, `vitals.rbs`, and `learning_metadata.learning_used`. `learning_used` is true only when
+non-empty learning guidance is actually injected into the prompt.
 
 ## Why This Supports LlamaParse Later
 
@@ -158,4 +193,3 @@ Docker image on pull requests and pushes to `main`.
 - Parser dependency is inverted through `DocumentParser`, keeping LlamaParse optional and swappable.
 - Structured JSON logging uses request IDs for production tracing.
 - Central exception handlers keep error responses consistent.
-

@@ -1,6 +1,11 @@
-from app.schemas.pd import LearningMetadata
+from app.schemas.pd import LearningContext, LearningMetadata
 from app.schemas.prescription import AdmissionAdvice, PDExtraction, PDExtractionResponse
-from app.services.production_adapter import build_learning_metadata, percent, to_production_response
+from app.services.production_adapter import (
+    build_learning_metadata,
+    learning_context_has_content,
+    percent,
+    to_production_response,
+)
 
 
 def test_percent_converts_fraction_to_production_score():
@@ -25,6 +30,11 @@ def test_adapter_converts_confidence_and_ipd_probability():
 
     assert production.confidence_score == 95
     assert production.ipd_probability == 30
+    assert production.admission_advised is False
+    assert production.follow_up_date is None
+    assert production.patient.follow_up == ""
+    assert production.vitals.rbs == ""
+    assert production.issues == []
 
 
 def test_learning_metadata_does_not_echo_pi_like_values():
@@ -35,3 +45,22 @@ def test_learning_metadata_does_not_echo_pi_like_values():
     )
 
     assert metadata == {"learning_used": True, "retrieval_matches": 2}
+
+
+def test_learning_metadata_does_not_trust_caller_learning_used():
+    metadata = build_learning_metadata(
+        learning_used=False,
+        extraction_id=None,
+        supplied_metadata=LearningMetadata(learning_used=True, retrieval_matches=2),
+    )
+
+    assert metadata == {"retrieval_matches": 2, "learning_used": False}
+
+
+def test_learning_context_has_content_only_for_non_empty_context():
+    assert learning_context_has_content(None) is False
+    assert learning_context_has_content(LearningContext()) is False
+    assert (
+        learning_context_has_content(LearningContext(guidance="Prefer visible evidence."))
+        is True
+    )
