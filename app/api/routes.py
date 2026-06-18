@@ -34,6 +34,7 @@ async def chat(request: ChatRequest, container: Container = Depends(get_containe
 @router.post(
     "/pd/extract",
     response_model=ProductionPDResponse,
+    response_model_exclude_none=True,
 )
 async def extract_pd(
     request: PDExtractRequest,
