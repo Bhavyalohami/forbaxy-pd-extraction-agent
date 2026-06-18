@@ -4,7 +4,6 @@ from typing import Any
 from uuid import uuid4
 
 from llama_index.core.workflow import StartEvent, StopEvent, Workflow, step
-from llama_index.llms.openai_like import OpenAILike
 from openai import AsyncOpenAI, OpenAIError
 
 from app.agents.prescription_agent import PrescriptionAgent
@@ -47,16 +46,6 @@ class PDExtractionWorkflow(Workflow):
                 error_code="PRIVACY_BOUNDARY",
             )
 
-        llm = OpenAILike(
-            model=settings.model_name,
-            api_key=settings.openai_api_key,
-            api_base=settings.openai_api_base,
-            temperature=settings.temperature,
-            context_window=settings.llm_context_window,
-            is_chat_model=True,
-            is_function_calling_model=settings.llm_is_function_calling,
-        )
-
         learning_context_used = learning_context_has_content(request.learning_context)
         learning_context = request.learning_context if learning_context_used else None
         prompt = (
@@ -68,17 +57,14 @@ class PDExtractionWorkflow(Workflow):
         )
 
         try:
-            if image_data_url and settings.enable_vision_input:
-                response = await _complete_with_image(
-                    prompt=prompt,
-                    image_data_url=image_data_url,
-                    settings=settings,
-                )
-            else:
-                response = await llm.acomplete(prompt)
+            response = await _complete_with_chat(
+                prompt=prompt,
+                image_data_url=image_data_url if settings.enable_vision_input else None,
+                settings=settings,
+            )
         except OpenAIError as exc:
             raise AppError(
-                "Prescription extraction model failed.",
+                f"Prescription extraction model failed: {_safe_provider_error(exc)}",
                 error_code="LLM_PROVIDER_ERROR",
                 status_code=502,
             ) from exc
@@ -167,20 +153,25 @@ def _decode_raw_content(content: str) -> bytes:
         ) from exc
 
 
-async def _complete_with_image(*, prompt: str, image_data_url: str, settings: Settings) -> str:
+async def _complete_with_chat(
+    *,
+    prompt: str,
+    image_data_url: str | None,
+    settings: Settings,
+) -> str:
     client = AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_api_base)
+    content: str | list[dict[str, object]]
+    if image_data_url:
+        content = [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": image_data_url}},
+        ]
+    else:
+        content = prompt
     response = await client.chat.completions.create(
-        model=settings.vision_model_name or settings.model_name,
+        model=settings.model_name,
         temperature=settings.temperature,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": image_data_url}},
-                ],
-            }
-        ],
+        messages=[{"role": "user", "content": content}],
     )
     return response.choices[0].message.content or ""
 
@@ -207,6 +198,11 @@ def _default_extension(content: str, content_type: str) -> str:
         "image/webp": "webp",
         "application/pdf": "pdf",
     }.get(mime_type, "jpg" if content_type == "image" else "bin")
+
+
+def _safe_provider_error(exc: Exception) -> str:
+    message = str(exc).replace("\n", " ").strip()
+    return message[:500] or type(exc).__name__
 
 
 pd_extraction_workflow = PDExtractionWorkflow(timeout=45)

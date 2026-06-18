@@ -83,9 +83,12 @@ class PrescriptionAgent(AgentPort):
         )
         try:
             if image_data_url and self._enable_vision_input:
-                response = await self._complete_with_image(injected_message, image_data_url)
+                response = await self._complete_with_chat(
+                    injected_message,
+                    image_data_url=image_data_url,
+                )
             elif self._direct_llm_mode:
-                response = await self._llm.acomplete(f"{PD_SYSTEM_PROMPT}\n\n{injected_message}")
+                response = await self._complete_with_chat(injected_message)
             else:
                 response = await self._agent.run(user_msg=injected_message, ctx=ctx)
         except (TimeoutError, WorkflowTimeoutError) as exc:
@@ -108,7 +111,7 @@ class PrescriptionAgent(AgentPort):
                 extra={"session_id": session_id, "provider_error": str(exc)},
             )
             raise AppError(
-                "Prescription extraction model failed.",
+                f"Prescription extraction model failed: {_safe_provider_error(exc)}",
                 error_code="LLM_PROVIDER_ERROR",
                 status_code=502,
             ) from exc
@@ -123,20 +126,26 @@ class PrescriptionAgent(AgentPort):
             ),
         )
 
-    async def _complete_with_image(self, message: str, image_data_url: str) -> str:
+    async def _complete_with_chat(
+        self,
+        message: str,
+        *,
+        image_data_url: str | None = None,
+    ) -> str:
         client = AsyncOpenAI(api_key=self._api_key, base_url=self._api_base)
+        content: str | list[dict[str, object]]
+        text = f"{PD_SYSTEM_PROMPT}\n\n{message}"
+        if image_data_url:
+            content = [
+                {"type": "text", "text": text},
+                {"type": "image_url", "image_url": {"url": image_data_url}},
+            ]
+        else:
+            content = text
         response = await client.chat.completions.create(
-            model=self._vision_model_name,
+            model=self._vision_model_name if image_data_url else self._model_name,
             temperature=self._temperature,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": f"{PD_SYSTEM_PROMPT}\n\n{message}"},
-                        {"type": "image_url", "image_url": {"url": image_data_url}},
-                    ],
-                }
-            ],
+            messages=[{"role": "user", "content": content}],
         )
         return response.choices[0].message.content or ""
 
@@ -295,3 +304,8 @@ class PrescriptionAgent(AgentPort):
 
 def _safe_items(items: list[str]) -> list[str]:
     return [redact_patient_information(item.strip()) for item in items if item.strip()]
+
+
+def _safe_provider_error(exc: Exception) -> str:
+    message = str(exc).replace("\n", " ").strip()
+    return message[:500] or type(exc).__name__
