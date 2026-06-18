@@ -10,7 +10,10 @@ class Settings(BaseSettings):
         default="https://api.openai.com/v1",
         validation_alias="OPENAI_API_BASE",
     )
-    model_name: str = Field(default="gpt-4o-mini", validation_alias="MODEL_NAME")
+    model_name: str = Field(
+        default="meta-llama/llama-4-scout-17b-16e-instruct",
+        validation_alias="MODEL_NAME",
+    )
     vision_model_name: str = Field(default="", validation_alias="VISION_MODEL_NAME")
     enable_vision_input: bool = Field(default=True, validation_alias="ENABLE_VISION_INPUT")
     temperature: float = Field(default=0.1, ge=0, le=2, validation_alias="TEMPERATURE")

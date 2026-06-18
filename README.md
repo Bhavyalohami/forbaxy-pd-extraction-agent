@@ -28,7 +28,8 @@ flowchart TD
 
 1. Install `uv`.
 2. Copy `.env.example` to `.env`.
-3. Set `OPENAI_API_KEY`, `MODEL_NAME`, and optionally `OPENAI_API_BASE`.
+3. Set `OPENAI_API_KEY`; keep `MODEL_NAME=meta-llama/llama-4-scout-17b-16e-instruct`
+   for Groq.
 4. Run:
 
 ```powershell
@@ -88,7 +89,7 @@ curl -X POST http://localhost:8000/pd/extract \
     "extraction_id": "pd_123",
     "prescription_id": "rx_456",
     "provider": "groq",
-    "model": "llama-3.3-70b-versatile"
+    "model": "meta-llama/llama-4-scout-17b-16e-instruct"
   }'
 ```
 
