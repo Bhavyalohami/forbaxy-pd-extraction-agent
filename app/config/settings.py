@@ -25,5 +25,9 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     request_id_header: str = Field(default="X-Request-ID", validation_alias="REQUEST_ID_HEADER")
     max_upload_size_mb: int = Field(default=20, validation_alias="MAX_UPLOAD_SIZE_MB")
+    llama_cloud_api_key: str = Field(default="", validation_alias="LLAMA_CLOUD_API_KEY")
+    llama_parse_timeout: float = Field(default=60, gt=0, validation_alias="LLAMA_PARSE_TIMEOUT")
+    llama_parse_retries: int = Field(default=3, ge=0, validation_alias="LLAMA_PARSE_RETRIES")
+    parser_mode: str = Field(default="mock", validation_alias="PARSER_MODE")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

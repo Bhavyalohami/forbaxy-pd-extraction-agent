@@ -8,8 +8,14 @@ from app.core.exceptions import AppError
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.common import SuccessResponse
 from app.schemas.documents import UploadResponse
+from app.schemas.pd import PDExtractRequest, ProductionPDResponse
 from app.schemas.sessions import SessionResponse
-from app.services.privacy import redact_patient_information
+from app.services.privacy import contains_patient_information, redact_patient_information
+from app.services.production_adapter import (
+    build_learning_metadata,
+    parse_internal_extraction,
+    to_production_response,
+)
 
 router = APIRouter()
 
@@ -22,6 +28,35 @@ async def health() -> SuccessResponse:
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, container: Container = Depends(get_container)) -> ChatResponse:
     return await container.chat_service.chat(request)
+
+
+@router.post("/pd/extract", response_model=ProductionPDResponse)
+async def extract_pd(
+    request: PDExtractRequest,
+    container: Container = Depends(get_container),
+) -> ProductionPDResponse:
+    if contains_patient_information(request.content):
+        raise AppError(
+            "Patient information is not accepted by this endpoint.",
+            error_code="PRIVACY_BOUNDARY",
+        )
+
+    agent_result = await container.agent.run(
+        session_id=request.extraction_id or str(uuid4()),
+        message=redact_patient_information(request.content),
+        learning_context=request.learning_context,
+        learning_metadata=request.learning_metadata,
+        extraction_id=request.extraction_id,
+    )
+    return to_production_response(
+        parse_internal_extraction(agent_result.response),
+        learning_metadata=agent_result.learning_metadata
+        or build_learning_metadata(
+            learning_used=request.learning_context is not None,
+            extraction_id=request.extraction_id,
+            supplied_metadata=request.learning_metadata,
+        ),
+    )
 
 
 @router.post(

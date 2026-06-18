@@ -4,7 +4,8 @@ from llama_index.llms.openai_like import OpenAILike
 
 from app.agents.prescription_agent import PrescriptionAgent
 from app.config.settings import Settings
-from app.parsers.mock_parser import MockParser
+from app.parsers.base import DocumentParser
+from app.parsers.factory import build_parser
 from app.services.chat_service import ChatService
 from app.services.memory import InMemorySessionStore
 from app.services.review_learning import InMemoryReviewLearningStore
@@ -17,7 +18,7 @@ class Container:
     session_store: InMemorySessionStore
     review_learning_store: InMemoryReviewLearningStore
     tool_registry: ToolRegistry
-    parser: MockParser
+    parser: DocumentParser
     agent: PrescriptionAgent
     chat_service: ChatService
 
@@ -26,7 +27,7 @@ class Container:
         session_store = InMemorySessionStore()
         review_learning_store = InMemoryReviewLearningStore()
         tool_registry = build_default_registry()
-        parser = MockParser()
+        parser = build_parser(settings)
         llm = OpenAILike(
             model=settings.model_name,
             api_key=settings.openai_api_key,

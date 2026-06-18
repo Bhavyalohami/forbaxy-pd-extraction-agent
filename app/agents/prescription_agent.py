@@ -11,9 +11,11 @@ from app.agents.base import AgentPort, AgentResult
 from app.agents.prompts import PD_SYSTEM_PROMPT
 from app.core.exceptions import AppError
 from app.core.logging import get_logger
+from app.schemas.pd import LearningContext, LearningMetadata
 from app.schemas.prescription import PDExtractionResponse
 from app.services.memory import SessionStore
 from app.services.privacy import redact_patient_information
+from app.services.production_adapter import build_learning_metadata
 from app.services.review_learning import ReviewLearningStore
 from app.tools.registry import ToolRegistry
 
@@ -50,13 +52,20 @@ class PrescriptionAgent(AgentPort):
         )
         self._contexts: dict[str, Context] = {}
 
-    async def run(self, session_id: str, message: str) -> AgentResult:
+    async def run(
+        self,
+        session_id: str,
+        message: str,
+        *,
+        learning_context: LearningContext | None = None,
+        learning_metadata: LearningMetadata | None = None,
+        extraction_id: str | None = None,
+    ) -> AgentResult:
         logger.info("agent_execution_started", extra={"session_id": session_id})
         ctx = self._contexts.setdefault(session_id, Context(self._agent))
-        examples = await self._review_learning_store.list_recent_examples(limit=3)
         injected_message = self._inject_context(
             message,
-            examples=[example.reviewed_output for example in examples],
+            learning_context=learning_context,
         )
         try:
             if self._direct_llm_mode:
@@ -88,17 +97,51 @@ class PrescriptionAgent(AgentPort):
                 status_code=502,
             ) from exc
         logger.info("agent_execution_completed", extra={"session_id": session_id})
-        return AgentResult(response=self._coerce_pd_json(str(response)), sources=[])
+        return AgentResult(
+            response=self._coerce_pd_json(str(response)),
+            sources=[],
+            learning_metadata=build_learning_metadata(
+                learning_used=learning_context is not None,
+                extraction_id=extraction_id,
+                supplied_metadata=learning_metadata,
+            ),
+        )
 
-    def _inject_context(self, message: str, examples: list[dict[str, Any]]) -> str:
-        reviewed_context = redact_patient_information(json.dumps(examples[-3:], ensure_ascii=False))
+    def _inject_context(
+        self,
+        message: str,
+        *,
+        learning_context: LearningContext | None = None,
+    ) -> str:
+        formatted_learning_context = self.format_learning_context(learning_context)
         return (
             "Context: Input is expected to contain only cropped Prescription Details. "
             "For ordinary PD extraction, do not call tools; return the required JSON directly. "
-            "Reviewed DMS-MS corrections are ground truth. Use these sanitized examples only for "
-            f"format and abbreviation learning: {reviewed_context}\n\n"
+            f"{formatted_learning_context}\n\n"
             f"Task input:\n{message}"
         )
+
+    @staticmethod
+    def format_learning_context(learning_context: LearningContext | None) -> str:
+        if learning_context is None:
+            return "LEARNING CONTEXT\nNo external learning context supplied."
+
+        lines = ["LEARNING CONTEXT"]
+        guidance = redact_patient_information(learning_context.guidance.strip())
+        if guidance:
+            lines.extend(["", "Guidance:", guidance])
+
+        patterns = _safe_items(learning_context.patterns)
+        if patterns:
+            lines.extend(["", "Patterns:"])
+            lines.extend(f"- {item}" for item in patterns)
+
+        common_corrections = _safe_items(learning_context.common_corrections)
+        if common_corrections:
+            lines.extend(["", "Common corrections:"])
+            lines.extend(f"- {item}" for item in common_corrections)
+
+        return "\n".join(lines)
 
     def _coerce_pd_json(self, raw_response: str) -> str:
         sanitized = redact_patient_information(raw_response.strip())
@@ -128,3 +171,7 @@ class PrescriptionAgent(AgentPort):
             return response[first : last + 1]
 
         return response
+
+
+def _safe_items(items: list[str]) -> list[str]:
+    return [redact_patient_information(item.strip()) for item in items if item.strip()]
